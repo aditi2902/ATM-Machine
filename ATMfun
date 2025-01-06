@@ -20,8 +20,8 @@ class ATM:
         self.root.title("ATM")
         self.main_menu()
         self.current_pin = None
-        self.twilio_account_sid = 'ACc181cb9ea9c7fd9ca76bd57d827cd040' # Twilio account credentials
-        self.twilio_auth_token = '8cc5953cb6c5c3c7145816f801bed3d3'
+        self.twilio_account_sid = '12345abcdef...' # Twilio account credentials
+        self.twilio_auth_token = '8cc5953c3....'
         self.twilio_phone_number = '+17175239993'
 
     def main_menu(self):
