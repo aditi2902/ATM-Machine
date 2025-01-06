@@ -1,0 +1,467 @@
+import smtplib
+from email.message import EmailMessage
+import tkinter as tk
+from tkinter import messagebox
+from tkinter import ttk 
+import datetime
+from twilio.rest import Client
+import mysql.connector
+import matplotlib.pyplot as plt 
+import cv2
+
+mydb = mysql.connector.connect(host='localhost', user='root', passwd='admin@123', database='ATMDB')
+mycursor = mydb.cursor() # Establishing connection with Database
+
+class ATM:
+
+    def __init__(self, root):
+
+        self.root = root
+        self.root.title("ATM")
+        self.main_menu()
+        self.current_pin = None
+        self.twilio_account_sid = 'ACc181cb9ea9c7fd9ca76bd57d827cd040' # Twilio account credentials
+        self.twilio_auth_token = '8cc5953cb6c5c3c7145816f801bed3d3'
+        self.twilio_phone_number = '+17175239993'
+
+    def main_menu(self):
+        # Clear window
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
+        root.columnconfigure(0, weight=1)
+        root.columnconfigure(1, weight=1)
+
+        root.configure(bg="#c6e9f7")
+        # Display main menu
+        self.label = tk.Label(self.root, text="Welcome to the ATM", height=3, width=250,bg="#c6e9f7", font=("Arial Black",15))
+        self.label.grid(row=1, column=0, columnspan=4)
+
+        self.label = tk.Label(self.root, text="Please choose from options", height=5,width=250,bg="#c6e9f7",font=("Arial", 12))
+        self.label.grid(row=2, column=0, columnspan=4)
+
+        self.button = tk.Button(self.root, text="CREATE PIN >",font=("Arial Black",10) ,height=10, width=20, bg='#a4ede3',cursor="circle", command=self.create_pin_menu)
+        self.button.grid(column=1, row=4,padx=10,pady=2, sticky=tk.SW)
+
+        self.button = tk.Button(self.root, text="CHECK BALANCE >",font=("Arial Black",10) , height=10, width=20, bg='#a4ede3',cursor="circle", command=self.check_balance)
+        self.button.grid(column=1, row=5,padx=10 ,pady=2,sticky=tk.SW)
+
+        self.button = tk.Button(self.root, text="WITHDRAW >",font=("Arial Black",10) , height=10, width=20, bg='#a4ede3',cursor="circle", command=self.withdraw_menu)
+        self.button.grid(column=1, row=6,padx=10, pady=2,sticky=tk.SW)
+
+        self.button = tk.Button(self.root, text="DEPOSIT >",font=("Arial Black",10) , height=10, width=20, bg='#a4ede3',cursor="circle", command=self.deposit_menu)
+        self.button.grid(column=1, row=4,padx=10 , pady=2)
+
+        self.button = tk.Button(self.root, text="CHANGE PIN >",font=("Arial Black",10) , height=10, width=20, bg='#a4ede3',cursor="circle", command=self.change_pin_menu)
+        self.button.grid(column=1, row=5,padx=10,pady=2,stick=tk.NS)
+
+        self.button = tk.Button(self.root, text="EXIT >",font=("Arial Black",10) , height=10, width=20, bg='#a4ede3',cursor="circle", command=self.root.quit)
+        self.button.grid(column=1, row=6,padx=10,pady=2,stick=tk.NS)
+
+    def create_pin_menu(self):
+        for widget in self.root.winfo_children():
+            widget.destroy()
+        root.configure(bg="#c6e9f7")
+        self.label = tk.Label(self.root, text="Enter Name", height=5, width=250,bg="#c6e9f7")
+        self.label.pack()
+        self.name_entry = tk.Entry(self.root)
+        self.name_entry.pack()
+        self.label=tk.Label(self.root,text="Enter email address",height=10,bg="#c6e9f7")
+        self.label.pack()
+        self.email_add=tk.Entry(self.root)
+        self.email_add.pack()
+        self.label=tk.Label(self.root,text="Enter phone number",height=10,bg="#c6e9f7")
+        self.label.pack()
+        self.phone_entry=tk.Entry(self.root)
+        self.phone_entry.pack()
+        self.label = tk.Label(self.root, text="Enter PIN", height=10, width=250,bg="#c6e9f7")
+        self.label.pack()
+        self.pin_entry = tk.Entry(self.root, show="*")
+        self.pin_entry.pack()
+        self.label = tk.Label(self.root, text="", height=2, width=50,bg="#c6e9f7")
+        self.label.pack()
+        self.button = tk.Button(self.root, text="Enter", bg='#a4ede3', command=self.create_pin)
+        self.button.pack()
+
+    def create_pin(self):
+        new_pin = self.pin_entry.get().strip()
+        email = self.email_add.get().strip()
+        user_name = self.name_entry.get().strip()
+        phone_no =self.phone_entry.get().strip()
+        self.capture_and_store_image(new_pin)
+
+
+        if email:
+            if new_pin.isdigit() and user_name:   # Check if PIN is all digits and name is not empty
+                check_query = "SELECT COUNT(*) FROM ATMDATA WHERE pin =%s"
+                mycursor.execute(check_query, (new_pin,))
+                result = mycursor.fetchone()
+                if result[0]==0 :    # Check if PIN already exists
+                    mycursor.execute("INSERT INTO ATMDATA (name,email,phone_no,pin,BALANCE) VALUES (%s,%s,%s,%s,%s)",(user_name,email,phone_no,new_pin,5000))
+                    mydb.commit()
+                    self.capture_and_store_image(new_pin)
+                    messagebox.showinfo("Success", "PIN created successfully.")
+                else:
+                    messagebox.showerror("Error", "PIN already exists.")
+            else:
+                messagebox.showerror("Error", "Invalid PIN or Name")
+            self.main_menu()
+        else:
+            messagebox.showinfo("Error","Cant leave Email Empty")
+
+    def check_balance(self):
+        self.pin_entry_menu(self.show_balance)
+
+    def show_balance(self, pin):
+        self.current_pin=pin
+        mycursor.execute("SELECT name FROM ATMDATA WHERE pin=%s", (self.current_pin,))
+        result = mycursor.fetchone()
+        name = result[0]
+        mycursor.execute("SELECT BALANCE FROM ATMDATA WHERE pin=%s", (self.current_pin,))
+        resultbal = mycursor.fetchone()
+        messagebox.showinfo("Balance", f"{name}, your current balance is: {resultbal[0]}")
+        mycursor.execute("INSERT INTO TRANSACTIONS(pin,transaction_type,amount,timestamp) VALUES (%s,%s,%s,%s)",(self.current_pin,'Check Balance',0,datetime.datetime.now()))
+        mydb.commit() # Add details to 'TRANSACTIONS' table in database
+        self.main_menu()
+
+    def withdraw_menu(self):
+        self.pin_entry_menu(self.withdraw_step)
+
+    def withdraw_step(self, pin):
+        self.current_pin = pin
+        root.configure(bg="#c6e9f7")
+        for widget in self.root.winfo_children():
+            widget.destroy()
+        self.label = tk.Label(self.root, text="Enter Amount to Withdraw", height=10, width=250,bg="#c6e9f7")
+        self.label.pack()
+        self.withdraw_entry = tk.Entry(self.root)
+        self.withdraw_entry.pack()
+        self.button = tk.Button(self.root, text="Enter", height=2, command=self.withdraw)
+        self.button.pack()
+        self.label = tk.Label(self.root, text="", height=25,bg="#c6e9f7")
+        self.label.pack()
+
+    def withdraw(self):
+        query="SELECT BALANCE FROM ATMDATA WHERE pin = %s"
+        mycursor.execute(query,(self.current_pin,))
+        resultbal = mycursor.fetchone()
+
+        wamt_str = self.withdraw_entry.get().strip()
+        if wamt_str and wamt_str.isdigit():
+            wamt = int(wamt_str)
+            if wamt <= resultbal[0] :
+                mycursor.execute("UPDATE ATMDATA SET BALANCE=BALANCE - %s WHERE pin = %s",(wamt,self.current_pin))
+                mydb.commit()
+                messagebox.showinfo("Success", "Money withdrawn successfully")
+                mycursor.execute("INSERT INTO TRANSACTIONS(pin,transaction_type,amount,timestamp) VALUES (%s,%s,%s,%s)",
+                                 (self.current_pin, 'Withdrawal', wamt, datetime.datetime.now()))
+                mydb.commit()
+                current_time = datetime.datetime.now()
+                mycursor.execute("SELECT name FROM ATMDATA WHERE pin=%s", (self.current_pin,))
+                result = mycursor.fetchone()
+                name = result[0]  # accessing name for mail
+                mycursor.execute("SELECT BALANCE FROM ATMDATA WHERE pin=%s", (self.current_pin,))
+                resultbal = mycursor.fetchone()  # accessing new balance
+                mycursor.execute("SELECT email FROM ATMDATA WHERE pin=%s", (self.current_pin,))
+                resultmail = mycursor.fetchone()  # accessing mail ID to send the mail
+                mycursor.execute("SELECT phone_no FROM ATMDATA WHERE pin = %s",(self.current_pin,))
+                resultphone=mycursor.fetchone()
+                self.email_alert("Withdrawal", f"Dear {name},\n"
+                                               f"This is to confirm that a withdrawal of INR {wamt} has been made from your  account "
+                                            f"on {current_time} . Your current Balance is {resultbal[0]}. If this was not you please contact the Bank.",
+                                 resultmail[0])
+
+                self.sms_alert("Withdrawal", f"Dear {name},\n"
+                                               f"This is to confirm that a withdrawal of INR {wamt} has been made from your  account "
+                                            f"on {current_time} . Your current Balance is {resultbal[0]}. If this was not you please contact the Bank.",
+                                 resultphone[0])
+                self.transplot()
+            else:
+                messagebox.showinfo("Error", "Insufficient Balance")
+        else:
+            messagebox.showerror("Error", "Invalid Amount")
+        self.main_menu()
+
+    def deposit_menu(self):
+        self.pin_entry_menu(self.deposit_step)
+
+    def deposit_step(self, pin):
+        self.current_pin = pin
+        for widget in self.root.winfo_children():
+            widget.destroy()
+        root.configure(bg="#c6e9f7")
+        self.label = tk.Label(self.root, text="Enter Amount to Deposit", height=2,width=250,bg="#c6e9f7")
+        self.label.pack()
+        self.deposit_entry = tk.Entry(self.root)
+        self.deposit_entry.pack()
+        self.button = tk.Button(self.root, text="Deposit", command=self.deposit,height=2)
+        self.button.pack()
+        self.label=tk.Label(self.root,text="",height=25,bg="#c6e9f7")
+        self.label.pack()
+
+
+    def deposit(self):
+        damt_str = self.deposit_entry.get().strip()
+        mycursor.execute("SELECT BALANCE FROM ATMDATA WHERE pin=%s",(self.current_pin,))
+        resultbal = mycursor.fetchone()
+        if damt_str and damt_str.isdigit():
+            damt = int(damt_str)
+            mycursor.execute("UPDATE ATMDATA SET BALANCE = BALANCE +%s WHERE pin = %s",(damt,self.current_pin))
+            mydb.commit()
+            messagebox.showinfo("Success", "Deposit Successful")
+            current_time = datetime.datetime.now()
+            mycursor.execute("SELECT name FROM ATMDATA WHERE pin=%s",(self.current_pin,))
+            result=mycursor.fetchone()
+            name=result[0] #accessing name for mail
+            mycursor.execute("SELECT BALANCE FROM ATMDATA WHERE pin=%s", (self.current_pin,))
+            resultbal = mycursor.fetchone() #accessing new balance
+            mycursor.execute("SELECT email FROM ATMDATA WHERE pin=%s", (self.current_pin,))
+            resultmail = mycursor.fetchone() #accessing mail ID to send the mail
+            mycursor.execute("SELECT phone_no FROM ATMDATA WHERE pin=%s",(self.current_pin,))
+            resultphone=mycursor.fetchone() #accessing phone number
+
+            self.email_alert("Deposit", f"Dear {name},\n"
+                                        f"This is to confirm that a deposit of INR {damt} has been made to you account "
+                                        f"on {current_time}. Your current Balance is {resultbal[0]}.\n"
+                                        f"If this was not you please contact the bank.",resultmail[0])
+
+            self.sms_alert("Deposit", f"Dear {name},\n"
+                                        f"This is to confirm that a deposit of INR {damt} has been made to you account "
+                                        f"on {current_time}. Your current Balance is {resultbal[0]}.\n"
+                                        f"If this was not you please contact the bank.",resultphone[0])
+            mycursor.execute("INSERT INTO TRANSACTIONS(pin,transaction_type,amount,timestamp) VALUES (%s,%s,%s,%s)",
+                             (self.current_pin, 'Deposit', damt, datetime.datetime.now()))
+            mydb.commit()
+            self.transplot()
+        else:
+            messagebox.showerror("Error", "Invalid Amount")
+
+
+        self.main_menu()
+
+
+
+    def change_pin_menu(self):
+        self.pin_entry_menu(self.change_pin_step)
+
+    def change_pin_step(self, pin):
+        self.current_pin = pin
+        for widget in self.root.winfo_children():
+            widget.destroy()
+        self.label = tk.Label(self.root, text="Enter New PIN", height=2,width=250,bg="#c6e9f7")
+        self.label.pack()
+        self.new_pin_entry = tk.Entry(self.root, show="*")
+        self.new_pin_entry.pack()
+        self.button = tk.Button(self.root, text="Change PIN",height= 2, command=self.change_pin)
+        self.button.pack()
+        self.label=tk.Label(self.root,text="",height=25,bg="#c6e9f7")
+        self.label.pack()
+
+    def change_pin(self):
+
+        new_pin = self.new_pin_entry.get().strip()
+        query = "SELECT name FROM ATMDATA WHERE pin = %s"
+        mycursor.execute(query, (self.current_pin,))
+        result = mycursor.fetchone()
+
+        if new_pin.isdigit() and len(new_pin) == 4:  # Assuming PIN length is 4 digits
+            check_query = "SELECT COUNT(*) FROM ATMDATA WHERE pin = %s"
+            mycursor.execute(check_query, (new_pin,))
+            result = mycursor.fetchone()
+            if result[0] == 0:
+                mycursor.execute("UPDATE ATMDATA SET pin = %s WHERE pin = %s", (new_pin, self.current_pin))
+                mydb.commit()
+                messagebox.showinfo("Success", "PIN changed successfully")
+                self.current_pin=new_pin
+
+                # Notify user via email
+                self.mail_newpin(new_pin)
+
+            else:
+                messagebox.showerror("Error", "PIN already exists.")
+        else:
+            messagebox.showerror("Error", "Invalid PIN format (must be 4 digits)")
+
+        self.main_menu()
+
+    def mail_newpin(self,pin):
+        current_time = datetime.datetime.now()
+        mycursor.execute("SELECT name FROM ATMDATA WHERE pin=%s", (self.current_pin,))
+        result = mycursor.fetchone()
+        name = result[0]  # accessing name for mail
+
+        mycursor.execute("SELECT email FROM ATMDATA WHERE pin=%s", (self.current_pin,))
+        resultmail = mycursor.fetchone()  # accessing mail ID to send the mail
+
+        mycursor.execute("SELECT phone_no FROM ATMDATA WHERE pin=%s",(self.current_pin,))
+        resultphone = mycursor.fetchone() #accessing phone no.
+        self.email_alert("PIN Change", f" Dear {name},\n"
+                                       f"This is to confirm that your Account PIN has been changed  "
+                                       f"on {current_time}. If this was not you please contact the bank.",
+                         resultmail[0])
+
+
+        self.sms_alert("PIN Change", f" Dear {name},\n"
+                                       f"This is to confirm that your Account PIN has been changed  "
+                                       f"on {current_time}. If this was not you please contact the bank.",
+                         resultphone[0])
+        mycursor.execute("INSERT INTO TRANSACTIONS(pin,transaction_type,amount,timestamp) VALUES (%s,%s,%s,%s)",
+                         (self.current_pin, 'Change pin', 0, datetime.datetime.now()))
+        mydb.commit()
+        self.transplot()
+        self.main_menu()
+
+    def pin_entry_menu(self, next_step):
+        for widget in self.root.winfo_children():
+            widget.destroy()
+        root.configure(bg="#c6e9f7")
+        self.label = tk.Label(self.root, text="Enter PIN", height=10,width=250,bg="#c6e9f7")
+        self.label.pack()
+
+        self.pin_entry = tk.Entry(self.root, show="*")
+        self.pin_entry.pack()
+
+        self.button = tk.Button(self.root, text="Enter", height=2, command=lambda: self.verify_pin(next_step))
+        self.button.pack()
+
+        self.label = tk.Label(self.root, text="", height=25,bg="#c6e9f7")
+        self.label.pack()
+
+    def verify_pin(self, next_step):
+        pin = self.pin_entry.get().strip()
+        check_query = "SELECT COUNT(*) FROM ATMDATA WHERE pin =%s"
+        mycursor.execute(check_query, (pin,))
+        result = mycursor.fetchone()
+        if result[0] != 0: #atleast 1 occurence
+            next_step(pin)
+        else:
+            messagebox.showerror("Error", "Incorrect PIN")
+
+    def email_alert(self,subject,body,to):
+        msg=EmailMessage()
+        msg.set_content(body)
+        msg['subject']=subject
+        msg['to']=to
+
+        username="aditi.gupta@rnpodarschool.com"
+        msg['from']=username
+
+        password="uatu rndk yope mgun"
+
+        server=smtplib.SMTP("smtp.gmail.com",587) #server connection
+        server.starttls() #tls provides security
+        server.login(username,password)
+        server.send_message(msg)
+        server.quit()
+
+    def sms_alert(self, subject, body, to):
+        client = Client(self.twilio_account_sid, self.twilio_auth_token)
+        message = client.messages.create(
+            body=f"{subject}: {body}",
+            from_=self.twilio_phone_number,
+            to=to
+        )
+
+    def transplot(self):
+        mycursor.execute("SELECT timestamp, transaction_type, amount FROM TRANSACTIONS WHERE pin=%s",
+                         (self.current_pin,))
+        transactions = mycursor.fetchall()
+
+        if not transactions:
+            print("No transactions found for this account.")
+        else:
+            timestamp, transaction_type, amount = zip(*transactions)
+
+            withdrawals =[(ts,amt) for ts,ttype,amt in zip(timestamp,transaction_type,amount) if ttype=='Withdrawal']
+            deposits = [(ts, amt) for ts, ttype, amt in zip(timestamp, transaction_type, amount) if ttype == 'Deposit']
+
+            if withdrawals:
+                withdrawal_timestamps, withdrawal_amounts = zip(*withdrawals)
+                withdrawal_amounts = [-amt for amt in withdrawal_amounts]  # Make withdrawals negative
+            else:
+                withdrawal_timestamps, withdrawal_amounts = [], []
+
+            if deposits:
+                deposit_timestamps, deposit_amounts = zip(*deposits)
+            else:
+                deposit_timestamps, deposit_amounts = [], []
+
+            plt.figure(figsize=(12, 10))
+
+            # Plot withdrawals
+            plt.subplot(2, 1, 1)
+            #plt.bar(withdrawal_timestamps, withdrawal_amounts, color='red')
+            plt.bar(withdrawal_timestamps[0:10], withdrawal_amounts[0:10],color='red')
+
+            plt.title('Withdrawal History')
+            plt.xlabel('Timestamp')
+            plt.ylabel('Amount')
+            plt.grid(True, axis='y')
+            plt.xticks(rotation=45)
+
+            # Plot deposits
+            plt.subplot(2, 1, 2)
+            #plot graph for deposits in green
+            plt.bar(deposit_timestamps, deposit_amounts, color='green')
+            plt.title('Deposit History')
+            plt.xlabel('Timestamp')
+            plt.ylabel('Amount')
+            plt.grid(True, axis='y')
+            plt.xticks(rotation=45)
+
+            plt.tight_layout()
+            plt.savefig('transaction_history.png')
+            plt.close()
+
+    def capture_image(self, filename="user_image.jpg"):
+        # Initialize the webcam
+        cap = cv2.VideoCapture(0)
+
+        if not cap.isOpened():
+            print("Error: Could not open webcam.")
+            return None
+
+        # Capture a single frame
+        ret, frame = cap.read()
+
+        if ret:
+            # Save the captured image to a file
+            cv2.imwrite(filename, frame)
+            print(f"Image saved as {filename}")
+            return filename
+        else:
+            print("Error: Could not capture image.")
+            return None
+
+        cap.release()
+        cv2.destroyAllWindows()
+
+    def image_to_binary(self, filename):
+        with open(filename, 'rb') as file:
+            binary_data = file.read()
+        return binary_data
+
+    def insert_image(self, image_binary, pin):
+        mycursor.execute("UPDATE ATMDATA SET image=%s WHERE pin=%s", (image_binary, pin))
+        mydb.commit()
+
+    def capture_and_store_image(self, pin):
+        image_filename = self.capture_image()
+        if image_filename:
+            image_binary = self.image_to_binary(image_filename)
+            if image_binary:
+                self.insert_image(image_binary, pin)
+                print("Image captured and stored successfully.")
+            else:
+                print("Failed to convert image to binary.")
+        else:
+            print("Failed to capture image.")
+
+
+if __name__== "__main__":
+
+    root = tk.Tk()
+    app = ATM(root)
+    root.mainloop()
+
+
