@@ -18,5 +18,8 @@ Learning Outcomes
 
 - Email Gateway and SMTP : Implementing the email gateway was a valuable learning experience. I gained insights into how email protocols work and how to use the `smtplib` library to send emails programmatically. This included configuring the SMTP server, handling authentication, and ensuring email security.
 
+The graph below created using matplotlib library shows trends of withdrawals and deposits with dates
+![image](https://github.com/user-attachments/assets/191c9ffd-c9f0-4e97-9d05-9540300e55ef)
+
 
 
