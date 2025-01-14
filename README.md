@@ -1,5 +1,5 @@
 # ATM-Machine
-Introduction\n
+Introduction<br>
 As a Computer Science Engineering student, I had the opportunity to undertake a one-month internship at Yotta Data Services. During this period, I worked on a project that involved designing a Graphical User Interface (GUI) for an Automated Teller Machine (ATM) with an integrated email gateway. This experience has significantly enhanced my understanding of Object-Oriented Programming (OOP) in Python, GUI development, and the utilisation of Simple Mail Transfer Protocol (SMTP) for email communication.
 
 Project Overview
